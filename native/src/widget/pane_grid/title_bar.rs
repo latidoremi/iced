@@ -6,7 +6,7 @@ use crate::renderer;
 use crate::widget::container;
 use crate::widget::{self, Tree};
 use crate::{
-    Clipboard, Element, Layout, Padding, Point, Rectangle, Shell, Size,
+    Alignment, Clipboard, Element, Layout, Padding,Vector, Point, Rectangle, Shell, Size,
 };
 
 /// The title bar of a [`Pane`].
@@ -22,6 +22,7 @@ where
     controls: Option<Element<'a, Message, Renderer>>,
     padding: Padding,
     always_show_controls: bool,
+    align_controls: Alignment,
     style: <Renderer::Theme as container::StyleSheet>::Style,
 }
 
@@ -40,6 +41,7 @@ where
             controls: None,
             padding: Padding::ZERO,
             always_show_controls: false,
+            align_controls: Alignment::Center,
             style: Default::default(),
         }
     }
@@ -78,6 +80,17 @@ where
     /// [`Pane`]: crate::widget::pane_grid::Pane
     pub fn always_show_controls(mut self) -> Self {
         self.always_show_controls = true;
+        self
+    }
+
+    /// Sets the vertical alignment of [`content`] and [`controls`]
+    /// 
+    /// By default, the content and controls are aligned to their vertical center
+    /// 
+    /// [`content`]: Self::content
+    /// [`controls`]: Self::controls
+    pub fn align_controls(mut self, align_controls: Alignment) -> Self {
+        self.align_controls = align_controls;
         self
     }
 }
@@ -133,8 +146,20 @@ where
         let inherited_style = renderer::Style {
             text_color: style.text_color.unwrap_or(inherited_style.text_color),
         };
+        let br = style.border_radius;
+        let background = style.background.unwrap_or(crate::Background::Color(crate::Color::TRANSPARENT));
+        
+        renderer.fill_quad(
+            renderer::Quad{
+                bounds,
+                border_radius: [br, br, 0.0, 0.0].into(),
+                border_width: style.border_width,
+                border_color: style.border_color,
+            }, 
+            background
+        );
 
-        container::draw_background(renderer, &style, bounds);
+        // container::draw_background(renderer, &style, bounds);
 
         let mut children = layout.children();
         let padded = children.next().unwrap();
@@ -219,7 +244,7 @@ where
         let limits = limits.pad(self.padding);
         let max_size = limits.max();
 
-        let title_layout = self
+        let mut title_layout = self
             .content
             .as_widget()
             .layout(renderer, &layout::Limits::new(Size::ZERO, max_size));
@@ -236,7 +261,31 @@ where
 
             let height = title_size.height.max(controls_size.height);
 
-            controls_layout.move_to(Point::new(space_before_controls, 0.0));
+            match self.align_controls{
+                Alignment::Center | Alignment::Fill => {
+                    let height_diff = title_size.height - controls_size.height;
+                    let height_offset = height_diff.abs() * 0.5;
+                    if height_diff > 0.0{
+                        controls_layout.move_to(Point::new(space_before_controls, height_offset));
+                    }else{
+                        controls_layout.move_to(Point::new(space_before_controls, 0.0));
+                        title_layout.move_to(Point::new(0.0, height_offset));
+                    }
+                },
+                Alignment::Start => {
+                    controls_layout.move_to(Point::new(space_before_controls, 0.0));
+                },
+                Alignment::End => {
+                    let height_diff = title_size.height - controls_size.height;
+                    let height_offset = height_diff.abs();
+                    if height_diff > 0.0{
+                        controls_layout.move_to(Point::new(space_before_controls, height_offset));
+                    }else{
+                        controls_layout.move_to(Point::new(space_before_controls, 0.0));
+                        title_layout.move_to(Point::new(0.0, height_offset));
+                    }
+                }
+            }
 
             layout::Node::with_children(
                 Size::new(max_size.width, height),

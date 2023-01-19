@@ -108,6 +108,7 @@ where
     on_click: Option<Box<dyn Fn(Pane) -> Message + 'a>>,
     on_drag: Option<Box<dyn Fn(DragEvent) -> Message + 'a>>,
     on_resize: Option<(u16, Box<dyn Fn(ResizeEvent) -> Message + 'a>)>,
+    get_bounds: Option<Box<dyn Fn(Pane, Rectangle) -> Message + 'a>>,
     style: <Renderer::Theme as StyleSheet>::Style,
 }
 
@@ -154,6 +155,7 @@ where
             on_click: None,
             on_drag: None,
             on_resize: None,
+            get_bounds: None,
             style: Default::default(),
         }
     }
@@ -210,6 +212,17 @@ where
         F: 'a + Fn(ResizeEvent) -> Message,
     {
         self.on_resize = Some((leeway, Box::new(f)));
+        self
+    }
+
+    /// Sets the message that will be produced when a [`Pane`] of the
+    /// [`PaneGrid`] is clicked.
+    /// Compared to [`Self::on_click`], this is useful when you need the bounded rectangle of the clicked pane
+    pub fn get_bounds<F>(mut self, f: F) -> Self
+    where
+        F: 'a + Fn(Pane, Rectangle) -> Message,
+    {
+        self.get_bounds = Some(Box::new(f));
         self
     }
 
@@ -325,7 +338,7 @@ where
         } else {
             &None
         };
-
+        
         let event_status = update(
             action,
             self.contents.layout(),
@@ -338,6 +351,7 @@ where
             &self.on_click,
             on_drag,
             &self.on_resize,
+            &self.get_bounds
         );
 
         let picked_pane = action.picked_pane().map(|(pane, _)| pane);
@@ -524,6 +538,7 @@ pub fn update<'a, Message, T: Draggable>(
     on_click: &Option<Box<dyn Fn(Pane) -> Message + 'a>>,
     on_drag: &Option<Box<dyn Fn(DragEvent) -> Message + 'a>>,
     on_resize: &Option<(u16, Box<dyn Fn(ResizeEvent) -> Message + 'a>)>,
+    get_bounds: &Option<Box<dyn Fn(Pane, Rectangle) -> Message + 'a>>,
 ) -> event::Status {
     let mut event_status = event::Status::Ignored;
 
@@ -541,18 +556,18 @@ pub fn update<'a, Message, T: Draggable>(
                             cursor_position.x - bounds.x,
                             cursor_position.y - bounds.y,
                         );
-
+    
                         let splits = node.split_regions(
                             f32::from(spacing),
                             Size::new(bounds.width, bounds.height),
                         );
-
+    
                         let clicked_split = hovered_split(
                             splits.iter(),
                             f32::from(spacing + leeway),
                             relative_cursor,
                         );
-
+    
                         if let Some((split, axis, _)) = clicked_split {
                             if action.picked_pane().is_none() {
                                 *action =
@@ -567,6 +582,7 @@ pub fn update<'a, Message, T: Draggable>(
                                 contents,
                                 on_click,
                                 on_drag,
+                                get_bounds,
                             );
                         }
                     }
@@ -579,6 +595,7 @@ pub fn update<'a, Message, T: Draggable>(
                             contents,
                             on_click,
                             on_drag,
+                            get_bounds,
                         );
                     }
                 }
@@ -614,6 +631,7 @@ pub fn update<'a, Message, T: Draggable>(
                 event_status = event::Status::Captured;
             }
         }
+
         Event::Mouse(mouse::Event::CursorMoved { .. })
         | Event::Touch(touch::Event::FingerMoved { .. }) => {
             if let Some((_, on_resize)) = on_resize {
@@ -662,6 +680,7 @@ fn click_pane<'a, Message, T>(
     contents: impl Iterator<Item = (Pane, T)>,
     on_click: &Option<Box<dyn Fn(Pane) -> Message + 'a>>,
     on_drag: &Option<Box<dyn Fn(DragEvent) -> Message + 'a>>,
+    get_bounds: &Option<Box<dyn Fn(Pane, Rectangle) -> Message + 'a>>,
 ) where
     T: Draggable,
 {
@@ -669,14 +688,17 @@ fn click_pane<'a, Message, T>(
         .zip(layout.children())
         .filter(|(_, layout)| layout.bounds().contains(cursor_position));
 
-    if let Some(((pane, content), layout)) = clicked_region.next() {
+    if let Some(((pane, content), region_layout)) = clicked_region.next() {
         if let Some(on_click) = &on_click {
             shell.publish(on_click(pane));
         }
+        if let Some(get_bounds) = &get_bounds {
+            shell.publish(get_bounds(pane, layout.bounds()));
+        }
 
         if let Some(on_drag) = &on_drag {
-            if content.can_be_dragged_at(layout, cursor_position) {
-                let pane_position = layout.position();
+            if content.can_be_dragged_at(region_layout, cursor_position) {
+                let pane_position = region_layout.position();
 
                 let origin = cursor_position
                     - Vector::new(pane_position.x, pane_position.y);

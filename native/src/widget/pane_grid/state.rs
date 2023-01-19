@@ -1,6 +1,7 @@
 //! The state of a [`PaneGrid`].
 //!
 //! [`PaneGrid`]: crate::widget::PaneGrid
+
 use crate::widget::pane_grid::{
     Axis, Configuration, Direction, Node, Pane, Split,
 };
