@@ -29,6 +29,8 @@ where
     height: Length,
     max_width: u32,
     max_height: u32,
+    min_width: u32,
+    min_height: u32,
     horizontal_alignment: alignment::Horizontal,
     vertical_alignment: alignment::Vertical,
     style: <Renderer::Theme as StyleSheet>::Style,
@@ -51,6 +53,8 @@ where
             height: Length::Shrink,
             max_width: u32::MAX,
             max_height: u32::MAX,
+            min_width: 0,
+            min_height: 0,
             horizontal_alignment: alignment::Horizontal::Left,
             vertical_alignment: alignment::Vertical::Top,
             style: Default::default(),
@@ -85,6 +89,18 @@ where
     /// Sets the maximum height of the [`Container`] in pixels.
     pub fn max_height(mut self, max_height: u32) -> Self {
         self.max_height = max_height;
+        self
+    }
+
+    /// Sets the minimum width of the [`Container`].
+    pub fn min_width(mut self, min_width: u32) -> Self {
+        self.min_width = min_width;
+        self
+    }
+
+    /// Sets the minimum height of the [`Container`] in pixels.
+    pub fn min_height(mut self, min_height: u32) -> Self {
+        self.min_height = min_height;
         self
     }
 
@@ -156,6 +172,8 @@ where
             self.height,
             self.max_width,
             self.max_height,
+            self.min_width,
+            self.min_height,
             self.padding,
             self.horizontal_alignment,
             self.vertical_alignment,
@@ -285,15 +303,19 @@ pub fn layout<Renderer>(
     height: Length,
     max_width: u32,
     max_height: u32,
+    min_width: u32,
+    min_height: u32,
     padding: Padding,
     horizontal_alignment: alignment::Horizontal,
     vertical_alignment: alignment::Vertical,
     layout_content: impl FnOnce(&Renderer, &layout::Limits) -> layout::Node,
 ) -> layout::Node {
     let limits = limits
-        .loose()
+        // .loose()
         .max_width(max_width)
         .max_height(max_height)
+        .min_width(min_width)
+        .min_height(min_height)
         .width(width)
         .height(height);
 
