@@ -138,10 +138,10 @@ where
 
         let bounds = limits.max();
 
-        let (width, height) =
+        let (width, _) =
             renderer.measure(&self.content, size, self.font.clone(), bounds);
 
-        let size = limits.resolve(Size::new(width, height));
+        let size = limits.resolve(Size::new(width, size as f32));
 
         layout::Node::new(size)
     }
