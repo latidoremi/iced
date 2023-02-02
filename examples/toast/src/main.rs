@@ -506,7 +506,7 @@ mod toast {
                 10.into(),
                 10.0,
                 Alignment::End,
-                self.toasts,
+                &self.toasts.iter().map(|e|e).collect::<Vec<_>>(),
             )
             .translate(Vector::new(position.x, position.y))
         }

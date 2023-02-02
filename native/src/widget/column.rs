@@ -137,7 +137,7 @@ where
             self.padding,
             self.spacing as f32,
             self.align_items,
-            &self.children,
+            &self.children.iter().map(|e| e).collect::<Vec<_>>(),
         )
     }
 
