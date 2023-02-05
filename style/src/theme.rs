@@ -20,6 +20,7 @@ use crate::svg;
 use crate::text;
 use crate::text_input;
 use crate::toggler;
+use crate::menu_bar;
 
 use iced_core::{Background, Color, Vector};
 
@@ -1073,5 +1074,34 @@ impl text_input::StyleSheet for Theme {
         let palette = self.extended_palette();
 
         palette.primary.weak.color
+    }
+}
+
+
+#[derive(Default)]
+/// The style of a menu bar and it's menus
+pub enum MenuBar{
+    /// The default style.
+    #[default]
+    Default,
+    /// A [`Theme`] that uses a [`Custom`] palette.
+    Custom(Box<dyn menu_bar::StyleSheet<Style = Theme>>),
+}
+impl menu_bar::StyleSheet for Theme{
+    type Style = MenuBar;
+
+    fn appearance(&self, _style: &Self::Style) -> menu_bar::Appearance {
+        let palette = self.extended_palette();
+
+        menu_bar::Appearance{
+            background: palette.background.base.color,
+            border_width: 1.5,
+            border_radius: 4.0,
+            border_color: palette.background.weak.color,
+            highlight_path: Color{
+                a: 0.3,
+                ..palette.background.base.text
+            },
+        }
     }
 }

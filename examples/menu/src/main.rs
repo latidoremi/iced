@@ -1,6 +1,7 @@
-use iced::widget::{ Space, slider, checkbox, container, button, text, row};
+use iced::widget::{ Space, slider, checkbox, container, button, text, row, toggler, horizontal_space};
 use iced::widget::column as col;
-use iced::{Application, Length, Color, alignment, theme};
+use iced::{Application, Length, Color, alignment, theme, Element};
+
 use iced_native::widget::menu::{MenuBar, MenuTree};
 use iced_native::widget::quad;
 
@@ -22,16 +23,20 @@ enum Message{
     Debug(String),
     ValueChange(u8),
     CheckChange(bool),
+    ToggleChange(bool),
     ColorChange(Color),
     Flip,
+    ThemeChange(bool),
 }
 
 struct App{
     title: String,
     value: u8,
     check: bool,
+    toggle: bool,
     theme: iced::Theme,
     flip: bool,
+    dark_mode: bool,
 }
 impl Application for App{
     type Executor = iced::executor::Default;
@@ -42,17 +47,21 @@ impl Application for App{
     fn new(_flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
         let theme = iced::Theme::custom(theme::Palette{
             background: Color::from([0.8;3]),
-            primary: Color::from([0.82, 0.38, 0.55]),
+            // primary: Color::from([0.82, 0.38, 0.55]),
+            primary: Color::from([0.45, 0.25, 0.57]),
             ..iced::Theme::Light.palette()
         });
+        // let theme = iced::Theme::Light;
 
         (
             Self{
                 title: "Menu Test".to_string(),
                 value: 0,
                 check: false,
+                toggle: false,
                 theme,
                 flip: false,
+                dark_mode:false,
             },
             iced::Command::none()
         )
@@ -69,7 +78,7 @@ impl Application for App{
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
         match message{
             Message::Debug(s) => {
-                println!("dbg msg: {}", s);
+                // println!("dbg msg: {}", s);
                 self.title = s.clone();
 
                 let plt = self.theme.palette();
@@ -103,6 +112,10 @@ impl Application for App{
                 self.check = c;
                 self.title = c.to_string();
             }
+            Message::ToggleChange(t) => {
+                self.toggle = t;
+                self.title = t.to_string();
+            }
             Message::ColorChange(c) => {
                 self.theme = iced::Theme::custom(theme::Palette{
                     primary: c,
@@ -112,6 +125,14 @@ impl Application for App{
                 
             },
             Message::Flip => self.flip = !self.flip,
+            Message::ThemeChange(b) => {
+                self.dark_mode = b;
+                if b {
+                    self.theme = iced::Theme::Dark;
+                }else{
+                    self.theme = iced::Theme::Light;
+                }
+            }
             _ => ()
         }
         iced::Command::none()
@@ -126,6 +147,7 @@ impl Application for App{
         ])
             .spacing(4)
             .item_size([180.0, 25.0])
+            .bounds_expand(30)
             ;
         
         let r = row!(
@@ -135,7 +157,8 @@ impl Application for App{
 
         let top_bar_style:fn(&iced::Theme)->container::Appearance = |_theme|{
             container::Appearance{
-                background: Some(Color::from([0.8;3]).into()),
+                // background: Some(Color::from([0.8;3]).into()),
+                background: Some(Color::TRANSPARENT.into()),
                 ..Default::default()
             }
         };
@@ -146,7 +169,7 @@ impl Application for App{
 
         let back_style:fn(&iced::Theme)->container::Appearance = |theme|{
             container::Appearance{
-                background: Some(theme.palette().primary.into()),
+                background: Some(theme.extended_palette().primary.base.color.into()),
                 ..Default::default()
             }
         };
@@ -177,9 +200,10 @@ struct ButtonStyle;
     impl button::StyleSheet for ButtonStyle{
         type Style = iced::Theme;
 
-        fn active(&self, _style: &Self::Style) -> button::Appearance {
+        fn active(&self, style: &Self::Style) -> button::Appearance {
             button::Appearance{
-                text_color: Color::BLACK,
+                // text_color: Color::BLACK,
+                text_color: style.extended_palette().background.base.text,
                 border_radius: 4.0.into(),
                 background: Some(Color::TRANSPARENT.into()),
                 // background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.2).into()),
@@ -187,84 +211,94 @@ struct ButtonStyle;
             }
         }
 
-        // fn hovered(&self, _style: &Self::Style) -> button::Appearance {
-        //     button::Appearance{
-        //         // background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.8).into()),
-        //         background: Some(Color::TRANSPARENT.into()),
-        //         ..Default::default()
-        //     }
-        // }
+        fn hovered(&self, style: &Self::Style) -> button::Appearance {
+            let plt = style.extended_palette();
+            
+            button::Appearance{
+                // background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.8).into()),
+                // background: Some(Color::TRANSPARENT.into()),
+                border_radius: 4.0.into(),
+                background: Some(plt.primary.weak.color.into()),
+                text_color: plt.primary.weak.text,
+                ..self.active(style)
+            }
+        }
     }
 
-fn dbb_m(label: &str, msg: Message) -> button::Button<'_, Message, iced::Renderer>{
-    button(
-        text(label)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            // .horizontal_alignment(alignment::Horizontal::Center)
-            .vertical_alignment(alignment::Vertical::Center)
-    )
-        .width(Length::Fill)
-        .height(Length::Fill)
+
+
+fn base_button<'a>(
+    content: impl Into<Element<'a, Message, iced::Renderer>>, 
+    msg: Message
+) -> button::Button<'a, Message, iced::Renderer>{
+    button(content)
         .padding([4, 8])
         .style(iced::theme::Button::Custom(Box::new(ButtonStyle{})))
         .on_press(msg)
 }
 
-fn dbb(label: &str) -> button::Button<'_, Message, iced::Renderer>{
-    button(
+fn labeled_button<'a>(
+    label: &str,
+    msg: Message
+) -> button::Button<'a, Message, iced::Renderer>{
+    base_button(
         text(label)
             .width(Length::Fill)
             .height(Length::Fill)
-            // .horizontal_alignment(alignment::Horizontal::Center)
-            .vertical_alignment(alignment::Vertical::Center)
+            .vertical_alignment(alignment::Vertical::Center),
+        msg
     )
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .padding([4, 8])
-        .style(iced::theme::Button::Custom(Box::new(ButtonStyle{})))
-        .on_press(Message::Debug(label.to_string()))
 }
 
-fn hb(label: &str) -> button::Button<'_, Message, iced::Renderer>{
-    button(label)
-        // .width(Length::Fill)
-        .padding([4, 8])
-        .style(iced::theme::Button::Custom(Box::new(ButtonStyle{})))
-        .on_press(Message::Debug(label.to_string()))
+fn debug_button<'a>(
+    label: &str,
+) -> button::Button<'a, Message, iced::Renderer>{
+    labeled_button(label, Message::Debug(label.into()))
 }
 
-fn dbb_mt(label: &str) -> MenuTree<'_, Message, iced::Renderer>{
-    MenuTree::new(dbb(label))
+fn debug_item<'a>(
+    label: &str,
+) -> MenuTree<'a, Message, iced::Renderer>{
+    MenuTree::new(
+        debug_button(label)
+            .width(Length::Fill)
+            .height(Length::Fill)
+    )
 }
 
-fn subm<'a>(
+
+fn sub_menu<'a>(
     label: &str, 
+    msg: Message, 
     children: Vec<MenuTree<'a, Message, iced::Renderer>>
 ) -> MenuTree<'a, Message, iced::Renderer>{
-    MenuTree::<Message, iced::Renderer>::with_children(
-        button(
+    MenuTree::with_children(
+        base_button(
             row![
                 text(label)
                     .width(Length::Fill)
                     .height(Length::Fill)
-                    .vertical_alignment(alignment::Vertical::Center),
+                    .vertical_alignment(alignment::Vertical::Center), 
                 text(" > ")
-                    .width(Length::Shrink)
                     .height(Length::Fill)
-                    .size(20)
-                    .horizontal_alignment(alignment::Horizontal::Center)
-                    .vertical_alignment(alignment::Vertical::Center),
-            ]
+                    .vertical_alignment(alignment::Vertical::Center), 
+            ],
+            msg
         )
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .padding([4, 8])
-            .style(iced::theme::Button::Custom(Box::new(ButtonStyle{})))
-            .on_press(Message::Debug(label.to_string())),
+        .width(Length::Fill)
+        .height(Length::Fill),
         children
     )
 }
+
+fn debug_sub_menu<'a>(
+    label: &str, 
+    children: Vec<MenuTree<'a, Message, iced::Renderer>>
+) -> MenuTree<'a, Message, iced::Renderer>{
+    sub_menu(label, Message::Debug(label.into()), children)
+}
+
+
 
 fn separator<'a>() -> MenuTree<'a, Message, iced::Renderer>{
     MenuTree::new(quad::Quad{
@@ -278,94 +312,72 @@ fn separator<'a>() -> MenuTree<'a, Message, iced::Renderer>{
 
 
 fn menu_1<'a>(app: &App) -> MenuTree<'a, Message, iced::Renderer>{
-    let crack_it = subm(
-        "crack it",
+    
+    let sub_5 = debug_sub_menu(
+        "SUB",
         vec![
-            dbb_mt("Name it"),
-            dbb_mt("read it"),
-            dbb_mt("tune it"),
-            dbb_mt("print it"),
-            dbb_mt("scan it"),
-            dbb_mt("send it"),
-            dbb_mt("fax"),
-            dbb_mt("rename it"),
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
+            
         ]
     );
-    let find_it = subm(
-        "find it",
+    let sub_4 = debug_sub_menu(
+        "SUB",
         vec![
-            dbb_mt("Surf it"),
-            dbb_mt("scroll it"),
-            dbb_mt("pause it"),
-            dbb_mt("click it"),
-            dbb_mt("cross it"),
-            crack_it,
-            dbb_mt("switch"),
-            dbb_mt("update it"),
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
+            
         ]
     );
-    let play_it = subm(
-        "play it",
+    let sub_3 = debug_sub_menu(
+        "More sub menus",
         vec![
-            dbb_mt("Lock it"),
-            dbb_mt("fill it"),
-            dbb_mt("call it"),
-            dbb_mt("view it"),
-            dbb_mt("code it"),
-            dbb_mt("jam"),
-            find_it,
-            dbb_mt("unlock it"),
+            debug_item("You can"),
+            debug_item("nest menus"),
+            sub_4,
+            debug_item("how ever"),
+            debug_item("You like"),
+            sub_5,
         ]
     );
-    let cut_it = subm(
-        "cut it",
+    let sub_2 = debug_sub_menu(
+        "Another sub menu",
         vec![
-            dbb_mt("Plug it"),
-            play_it,
-            dbb_mt("burn it"),
-            dbb_mt("rip it"),
-            dbb_mt("rip it"),
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
+            sub_3,
+            debug_item("Item"),
         ]
     );
-    let upgrade_it = subm(
-        "upgrade it",
+    let sub_1 = debug_sub_menu(
+        "A sub menu",
         vec![
-            dbb_mt("Write it"),
-            cut_it,
-            dbb_mt("paste it"),
-            dbb_mt("save it"),
-            separator(),
-            dbb_mt("load it"),
-            dbb_mt("check it"),
-            dbb_mt("quick rewrite it"),
-        ]
-    );
-
-    let break_it = subm(
-        "break it",
-        vec![
-            dbb_mt("Charge it"),
-            dbb_mt("point it"),
-            dbb_mt("zoom it"),
-            dbb_mt("press it"),
-            dbb_mt("snap it"),
-            dbb_mt("work it"),
-            dbb_mt("quick erase it"),
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
+            sub_2,
+            debug_item("Item"),
         ]
     );
 
     let root = MenuTree::with_children(
-        hb("Technologic"),
+        debug_button("Nested Menus"),
         vec![
-            dbb_mt("Buy it"),
-            dbb_mt("use it"),
-            break_it,
-            separator(),
-            dbb_mt("fix it"),
-            dbb_mt("trash it"),
-            dbb_mt("change it"),
-            dbb_mt("mail"),
-            upgrade_it,
+            debug_item("Item"),
+            debug_item("Item"),
+            sub_1,
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
         ]
     );
 
@@ -373,95 +385,53 @@ fn menu_1<'a>(app: &App) -> MenuTree<'a, Message, iced::Renderer>{
 }
 
 fn menu_2<'a>(app: &App) -> MenuTree<'a, Message, iced::Renderer>{
-    let twilight = subm(
-        "Twilight",
-        vec![
-            dbb_mt("Books"),
-            dbb_mt("Pudding"),
-            dbb_mt("Magic"),
-            dbb_mt("Princess"),
-            dbb_mt("Neeeerrrrrd"),
-        ]
+    
+    let bt = MenuTree::new(
+        button(
+            text("Button")
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .vertical_alignment(alignment::Vertical::Center)
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .on_press(Message::Debug("Button".into()))
+            
     );
 
-    let pinkie = subm(
-        "Pinkie",
-        vec![
-            dbb_mt("My name is Pinkie Pie"),
-            dbb_mt("Hello"),
-            dbb_mt("And I am here to say:"),
-            dbb_mt("You better get ready to die!"),
-        ]
+    let cb = MenuTree::new(
+        checkbox("Checkbox", app.check, Message::CheckChange)
     );
 
-    let ms = subm(
-        "M6",
-        vec![
-            twilight,
-            pinkie,
-            dbb_mt("Fluttershy"),
-            dbb_mt("Rarity"),
-            dbb_mt("Applejack"),
-            dbb_mt("Rainbow"),
-        ]
-    );
+    let sld = MenuTree::new(row![
+        "Slider",
+        horizontal_space(Length::Units(8)),
+        slider(0..=255, app.value, Message::ValueChange)
+    ]);
 
-    let starlight = subm(
-        "Starlight",
-        vec![
-            dbb_mt("Magic"),
-            dbb_mt("Trixie"),
-            dbb_mt("Trixie"),
-            dbb_mt("Trixie"),
-        ]
-    );
-
-    let trixie = subm(
-        "Trixie",
-        vec![
-            dbb_mt("Magic"),
-            dbb_mt("Starlight"),
-            dbb_mt("Starlight"),
-            dbb_mt("Starlight"),
-        ]
-    );
-
-    let vil = subm(
-        "V8",
-        vec![
-            dbb_mt("Sunset"),
-            starlight,
-            trixie,
-            separator(),
-            dbb_mt("Discord"),
-            dbb_mt("Trek"),
-            dbb_mt("Chrysalis"),
-            dbb_mt("Sambra"),
-            dbb_mt("Cozy Glow"),
-        ]
-    );
+    let tx = MenuTree::new(text("Text"));
+    
     
     let root = MenuTree::with_children(
-        hb("FIM"),
+        debug_button("Widgets"),
         vec![
-            dbb_mt("Lyra"),
-            dbb_mt("Bon Bon"),
-            ms,
-            separator(),
-            dbb_mt("Apple Bloom"),
-            dbb_mt("Sweetie Belle"),
-            dbb_mt("Scootaloo"),
-            vil,
-            separator(),
-            dbb_mt("Doctor Wh0000ves"),
-            dbb_mt("Derpyyyy"),
-
-            MenuTree::new( slider(0..=255, app.value, Message::ValueChange) ),
-            MenuTree::new( checkbox("Check Me", app.check, Message::CheckChange)
-                .size(17)
-                .spacing(10)
-                .width(Length::Fill)
-            ),
+            debug_item("You can use any widget"),
+            debug_item("as a menu item"),
+            bt,
+            cb,
+            sld,
+            tx,
+            MenuTree::with_children(
+                row![
+                    toggler(Some("Or a sub menu item".to_string()), app.toggle, Message::ToggleChange),
+                ].padding([0, 8]),
+                vec![
+                    debug_item("Item"),
+                    debug_item("Item"),
+                    debug_item("Item"),
+                    debug_item("Item"),
+                ]
+            )
         ]
     );
 
@@ -469,27 +439,17 @@ fn menu_2<'a>(app: &App) -> MenuTree<'a, Message, iced::Renderer>{
 }
 
 fn menu_3<'a>(app: &App) -> MenuTree<'a, Message, iced::Renderer>{
-
-    let [r,g,b,_] = app.theme.palette().primary.into_rgba8();
     
-    let primary = subm(
-        "Primary",
-        vec![
-            MenuTree::new(slider(0..=255, r, move |x| Message::ColorChange( Color::from_rgb8(x, g, b) ) )),
-            MenuTree::new(slider(0..=255, g, move |x| Message::ColorChange( Color::from_rgb8(r, x, b) ) )),
-            MenuTree::new(slider(0..=255, b, move |x| Message::ColorChange( Color::from_rgb8(r, g, x) ) )),
-        ]
-    );
-
     let root = MenuTree::with_children(
-        hb("Controls"),
+        labeled_button("Click Me", Message::Debug("Click Me".into())),
         vec![
-            primary,
-            MenuTree::new(dbb_m("Flip", Message::Flip)),
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
         ]
     );
 
     root
 }
-
-
