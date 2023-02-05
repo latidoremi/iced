@@ -58,16 +58,17 @@ impl Axis {
 /// padding and alignment to the items as needed.
 ///
 /// It returns a new layout [`Node`].
-pub fn resolve<Message, Renderer>(
+pub fn resolve<'a, E, Message, Renderer>(
     axis: Axis,
     renderer: &Renderer,
     limits: &Limits,
     padding: Padding,
     spacing: f32,
     align_items: Alignment,
-    items: &[Element<'_, Message, Renderer>],
+    items: &[E],
 ) -> Node
 where
+    E: std::borrow::Borrow<Element<'a, Message, Renderer>>,
     Renderer: crate::Renderer,
 {
     let limits = limits.pad(padding);
@@ -85,6 +86,7 @@ where
         let mut fill_cross = axis.cross(limits.min());
 
         items.iter().for_each(|child| {
+            let child = child.borrow();
             let cross_fill_factor = match axis {
                 Axis::Horizontal => child.as_widget().height(),
                 Axis::Vertical => child.as_widget().width(),
@@ -108,6 +110,7 @@ where
     }
 
     for (i, child) in items.iter().enumerate() {
+        let child = child.borrow();
         let fill_factor = match axis {
             Axis::Horizontal => child.as_widget().width(),
             Axis::Vertical => child.as_widget().height(),
@@ -150,6 +153,7 @@ where
     let remaining = available.max(0.0);
 
     for (i, child) in items.iter().enumerate() {
+        let child = child.borrow();
         let fill_factor = match axis {
             Axis::Horizontal => child.as_widget().width(),
             Axis::Vertical => child.as_widget().height(),

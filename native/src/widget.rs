@@ -34,6 +34,8 @@ pub mod toggler;
 pub mod tooltip;
 pub mod tree;
 pub mod vertical_slider;
+pub mod menu;
+pub mod quad;
 
 mod action;
 mod id;
@@ -82,6 +84,7 @@ pub use tooltip::Tooltip;
 pub use tree::Tree;
 #[doc(no_inline)]
 pub use vertical_slider::VerticalSlider;
+
 
 pub use action::Action;
 pub use id::Id;
