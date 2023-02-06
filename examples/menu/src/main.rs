@@ -1,8 +1,8 @@
-use iced::widget::{ Space, slider, checkbox, container, button, text, row, toggler, horizontal_space};
+use iced::widget::{ slider, checkbox, container, button, text,text_input, row, toggler, horizontal_space};
 use iced::widget::column as col;
-use iced::{Application, Length, Color, alignment, theme, Element};
+use iced::{Application, Length, Color, alignment, theme, Element,};
 
-use iced_native::widget::menu::{MenuBar, MenuTree};
+use iced_native::widget::menu::{MenuBar, MenuTree, PathHighlight};
 use iced_native::widget::quad;
 
 pub fn main() -> iced::Result{
@@ -19,7 +19,7 @@ pub fn main() -> iced::Result{
 
 #[derive(Debug, Clone)]
 enum Message{
-    Hello,
+    None,
     Debug(String),
     ValueChange(u8),
     CheckChange(bool),
@@ -27,6 +27,7 @@ enum Message{
     ColorChange(Color),
     Flip,
     ThemeChange(bool),
+    TextChange(String),
 }
 
 struct App{
@@ -37,6 +38,7 @@ struct App{
     theme: iced::Theme,
     flip: bool,
     dark_mode: bool,
+    text: String,
 }
 impl Application for App{
     type Executor = iced::executor::Default;
@@ -46,12 +48,12 @@ impl Application for App{
 
     fn new(_flags: Self::Flags) -> (Self, iced::Command<Self::Message>) {
         let theme = iced::Theme::custom(theme::Palette{
-            background: Color::from([0.8;3]),
-            // primary: Color::from([0.82, 0.38, 0.55]),
             primary: Color::from([0.45, 0.25, 0.57]),
             ..iced::Theme::Light.palette()
         });
-        // let theme = iced::Theme::Light;
+        /*
+        [0.45, 0.25, 0.57]
+        */
 
         (
             Self{
@@ -62,6 +64,7 @@ impl Application for App{
                 theme,
                 flip: false,
                 dark_mode:false,
+                text: "Text Input".into()
             },
             iced::Command::none()
         )
@@ -78,31 +81,7 @@ impl Application for App{
     fn update(&mut self, message: Self::Message) -> iced::Command<Self::Message> {
         match message{
             Message::Debug(s) => {
-                // println!("dbg msg: {}", s);
                 self.title = s.clone();
-
-                let plt = self.theme.palette();
-                let primary = match s.as_str() {
-                    "Twilight"   => Color::from([0.45, 0.25, 0.57]),
-                    "Pinkie"     => Color::from([0.82, 0.26, 0.41]),
-                    "Fluttershy" => Color::from([0.83, 0.75, 0.43]),
-                    "Rarity"     => Color::from([0.33, 0.24, 0.60]),
-                    "Applejack"  => Color::from([0.84, 0.45, 0.14]),
-                    "Rainbow"    => Color::from([0.08, 0.57, 0.81]),
-                    _ => plt.primary,
-                };
-                self.theme = iced::Theme::custom(theme::Palette{
-                    primary,
-                    ..plt
-                })
-                /*
-                [0.45, 0.25, 0.57]
-                [0.82, 0.26, 0.41]
-                [0.83, 0.75, 0.43]
-                [0.33, 0.24, 0.60]
-                [0.84, 0.45, 0.14]
-                [0.08, 0.57, 0.81]
-                */
             },
             Message::ValueChange(v) => {
                 self.value = v;
@@ -127,11 +106,22 @@ impl Application for App{
             Message::Flip => self.flip = !self.flip,
             Message::ThemeChange(b) => {
                 self.dark_mode = b;
+                let primary = self.theme.palette().primary;
                 if b {
-                    self.theme = iced::Theme::Dark;
+                    self.theme = iced::Theme::custom(theme::Palette{
+                        primary,
+                        ..iced::Theme::Dark.palette()
+                    })
                 }else{
-                    self.theme = iced::Theme::Light;
+                    self.theme = iced::Theme::custom(theme::Palette{
+                        primary,
+                        ..iced::Theme::Light.palette()
+                    })
                 }
+            },
+            Message::TextChange(s) => {
+                self.text = s.clone();
+                self.title = s;
             }
             _ => ()
         }
@@ -148,10 +138,11 @@ impl Application for App{
             .spacing(4)
             .item_size([180.0, 25.0])
             .bounds_expand(30)
+            .path_highlight(Some(PathHighlight::MenuActive))
             ;
         
         let r = row!(
-            Space::new(Length::Units(4), Length::Shrink),
+            horizontal_space(Length::Units(8)),
             mb,
         ).padding([2,0]);
 
@@ -217,7 +208,7 @@ struct ButtonStyle;
             button::Appearance{
                 // background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.8).into()),
                 // background: Some(Color::TRANSPARENT.into()),
-                border_radius: 4.0.into(),
+                // border_radius: 4.0.into(),
                 background: Some(plt.primary.weak.color.into()),
                 text_color: plt.primary.weak.text,
                 ..self.active(style)
@@ -266,6 +257,18 @@ fn debug_item<'a>(
     )
 }
 
+fn color_item<'a>(
+    color: Color,
+) -> MenuTree<'a, Message, iced::Renderer>{
+    MenuTree::new(
+        base_button(
+            circle(color),
+            Message::ColorChange(color),
+        )
+    )
+}
+
+
 
 fn sub_menu<'a>(
     label: &str, 
@@ -280,6 +283,7 @@ fn sub_menu<'a>(
                     .height(Length::Fill)
                     .vertical_alignment(alignment::Vertical::Center), 
                 text(" > ")
+                    .size(20)
                     .height(Length::Fill)
                     .vertical_alignment(alignment::Vertical::Center), 
             ],
@@ -299,7 +303,6 @@ fn debug_sub_menu<'a>(
 }
 
 
-
 fn separator<'a>() -> MenuTree<'a, Message, iced::Renderer>{
     MenuTree::new(quad::Quad{
         color: [0.5;3].into(),
@@ -307,6 +310,53 @@ fn separator<'a>() -> MenuTree<'a, Message, iced::Renderer>{
         inner_bounds: quad::InnerBounds::Ratio(0.98, 0.1),
         ..Default::default()
     })
+}
+
+fn dot_separator<'a>() -> MenuTree<'a, Message, iced::Renderer>{
+    MenuTree::new(
+        text("·························")
+            .size(30)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .horizontal_alignment(alignment::Horizontal::Center)
+            .vertical_alignment(alignment::Vertical::Center)
+    )
+}
+
+fn labeled_separator<'a>(label:&'a str) -> MenuTree<'a, Message, iced::Renderer>{
+    let q_1 = quad::Quad{
+        color: [0.5;3].into(),
+        border_radius: 4.0.into(),
+        inner_bounds: quad::InnerBounds::Ratio(0.98, 0.1),
+        ..Default::default()
+    };
+    let q_2 = quad::Quad{
+        color: [0.5;3].into(),
+        border_radius: 4.0.into(),
+        inner_bounds: quad::InnerBounds::Ratio(0.98, 0.1),
+        ..Default::default()
+    };
+
+    MenuTree::new(
+        row![
+            q_1,
+            text(label)
+                .height(Length::Fill)
+                .vertical_alignment(alignment::Vertical::Center),
+            q_2,
+        ]
+    )
+}
+
+fn circle<'a>(color: Color) -> quad::Quad{
+    let radius = 10.0;
+    
+    quad::Quad{
+        color,
+        inner_bounds: quad::InnerBounds::Square(radius * 2.0),
+        border_radius: radius.into(),
+        ..Default::default()
+    }
 }
 
 
@@ -351,9 +401,9 @@ fn menu_1<'a>(app: &App) -> MenuTree<'a, Message, iced::Renderer>{
             debug_item("Item"),
             debug_item("Item"),
             debug_item("Item"),
-            debug_item("Item"),
-            debug_item("Item"),
             sub_3,
+            debug_item("Item"),
+            debug_item("Item"),
             debug_item("Item"),
         ]
     );
@@ -362,9 +412,9 @@ fn menu_1<'a>(app: &App) -> MenuTree<'a, Message, iced::Renderer>{
         vec![
             debug_item("Item"),
             debug_item("Item"),
-            debug_item("Item"),
-            debug_item("Item"),
             sub_2,
+            debug_item("Item"),
+            debug_item("Item"),
             debug_item("Item"),
         ]
     );
@@ -385,7 +435,21 @@ fn menu_1<'a>(app: &App) -> MenuTree<'a, Message, iced::Renderer>{
 }
 
 fn menu_2<'a>(app: &App) -> MenuTree<'a, Message, iced::Renderer>{
-    
+
+    let sub_1 = MenuTree::with_children(
+        container(
+            toggler(Some("Or as a sub menu item".to_string()), app.toggle, Message::ToggleChange)
+        ).padding([0,8])
+        .height(Length::Fill)
+        .align_y(alignment::Vertical::Center),
+        vec![
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
+            debug_item("Item"),
+        ]
+    );
+
     let bt = MenuTree::new(
         button(
             text("Button")
@@ -401,6 +465,7 @@ fn menu_2<'a>(app: &App) -> MenuTree<'a, Message, iced::Renderer>{
 
     let cb = MenuTree::new(
         checkbox("Checkbox", app.check, Message::CheckChange)
+            .width(Length::Fill)
     );
 
     let sld = MenuTree::new(row![
@@ -409,8 +474,8 @@ fn menu_2<'a>(app: &App) -> MenuTree<'a, Message, iced::Renderer>{
         slider(0..=255, app.value, Message::ValueChange)
     ]);
 
-    let tx = MenuTree::new(text("Text"));
-    
+    // let tx = MenuTree::new(text("Text"));
+    let txn = MenuTree::new(text_input("", &app.text, Message::TextChange));
     
     let root = MenuTree::with_children(
         debug_button("Widgets"),
@@ -420,18 +485,16 @@ fn menu_2<'a>(app: &App) -> MenuTree<'a, Message, iced::Renderer>{
             bt,
             cb,
             sld,
-            tx,
-            MenuTree::with_children(
-                row![
-                    toggler(Some("Or a sub menu item".to_string()), app.toggle, Message::ToggleChange),
-                ].padding([0, 8]),
-                vec![
-                    debug_item("Item"),
-                    debug_item("Item"),
-                    debug_item("Item"),
-                    debug_item("Item"),
-                ]
-            )
+            txn,
+            sub_1,
+            separator(),
+            debug_item("Seperators are also widgets"),
+            labeled_separator("Separator"),
+            debug_item("Item"),
+            debug_item("Item"),
+            dot_separator(),
+            debug_item("Item"),
+            debug_item("Item"),
         ]
     );
 
@@ -439,15 +502,35 @@ fn menu_2<'a>(app: &App) -> MenuTree<'a, Message, iced::Renderer>{
 }
 
 fn menu_3<'a>(app: &App) -> MenuTree<'a, Message, iced::Renderer>{
+    let [r,g,b,_] = app.theme.palette().primary.into_rgba8();
     
-    let root = MenuTree::with_children(
-        labeled_button("Click Me", Message::Debug("Click Me".into())),
+    let primary = debug_sub_menu(
+        "Primary",
         vec![
-            debug_item("Item"),
-            debug_item("Item"),
-            debug_item("Item"),
-            debug_item("Item"),
-            debug_item("Item"),
+            MenuTree::new(slider(0..=255, r, move |x| Message::ColorChange( Color::from_rgb8(x, g, b) ) )),
+            MenuTree::new(slider(0..=255, g, move |x| Message::ColorChange( Color::from_rgb8(r, x, b) ) )),
+            MenuTree::new(slider(0..=255, b, move |x| Message::ColorChange( Color::from_rgb8(r, g, x) ) )),
+        ]
+    );
+
+    let root = MenuTree::with_children(
+        labeled_button("Controls", Message::Debug("Click Me".into())),
+        vec![
+            MenuTree::new(
+                labeled_button("Flip", Message::Flip)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+            ),
+            MenuTree::new(
+                row![
+                    toggler(Some("Dark Mode".into()), app.dark_mode, Message::ThemeChange)
+                ].padding([0, 8])
+            ),
+            color_item(Color::from([0.45, 0.25, 0.57])),
+            color_item(Color::from([0.15, 0.59, 0.64])),
+            color_item(Color::from([0.76, 0.82, 0.20])),
+            color_item(Color::from([0.17, 0.27, 0.33])),
+            primary,
         ]
     );
 

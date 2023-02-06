@@ -1079,7 +1079,7 @@ impl text_input::StyleSheet for Theme {
 
 
 #[derive(Default)]
-/// The style of a menu bar and it's menus
+/// The style of a menu bar and its menus
 pub enum MenuBar{
     /// The default style.
     #[default]
@@ -1095,13 +1095,11 @@ impl menu_bar::StyleSheet for Theme{
 
         menu_bar::Appearance{
             background: palette.background.base.color,
-            border_width: 1.5,
-            border_radius: 4.0,
+            border_width: 1.0,
+            border_radius: [6.0;4],
             border_color: palette.background.weak.color,
-            highlight_path: Color{
-                a: 0.3,
-                ..palette.background.base.text
-            },
+            background_expand: [6;4],
+            path: palette.primary.weak.color,
         }
     }
 }

@@ -6,7 +6,7 @@ use crate::{
 /// a menu itself can also be an item of another menu. 
 /// 
 /// A `MenuTree` represents a node in the tree, it holds a widget as a menu item 
-/// for it's parent, and a list of menu tree as child nodes. 
+/// for its parent, and a list of menu tree as child nodes. 
 /// Conceptually a node is either a menu(inner node) or an item(leaf node), 
 /// but there's no need to explicitly distinguish them here, if a menu tree 
 /// has children, it's a menu, otherwise it's an item

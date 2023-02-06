@@ -8,6 +8,19 @@ use crate::widget::{tree, Tree, };
 use super::menu_tree::MenuTree;
 use iced_style::menu_bar::StyleSheet;
 
+
+/// Methods for drawing path highlight
+#[derive(Debug, Clone)]
+pub enum PathHighlight{
+    /// Draw the full path,
+    Full,
+    /// Omit the active item
+    OmitActive,
+    /// Omit the active item if it's not a menu
+    MenuActive
+}
+
+
 struct MenuBarState{
     pressed: bool,
     cursor: Point,
@@ -41,6 +54,7 @@ where
     padding: Padding,
     bounds_expand: u16,
     item_size: Size,
+    path_highlight: Option<PathHighlight>,
     menu_roots: Vec<MenuTree<'a, Message, Renderer>>,
     style: <Renderer::Theme as StyleSheet>::Style,
 }
@@ -61,6 +75,7 @@ where
             padding: Padding::ZERO,
             bounds_expand: 15,
             item_size: [150.0, 30.0].into(),
+            path_highlight: Some(PathHighlight::MenuActive),
             menu_roots,
             style: <Renderer::Theme as StyleSheet>::Style::default(),
         }
@@ -103,6 +118,12 @@ where
     /// Sets the [`Size`] of each menu item
     pub fn item_size(mut self, item_size: impl Into<Size>) -> Self{
         self.item_size = item_size.into();
+        self
+    }
+
+    /// Sets the method for drawing path highlight
+    pub fn path_highlight(mut self, path_highlight: Option<PathHighlight>) -> Self{
+        self.path_highlight = path_highlight;
         self
     }
 
@@ -235,6 +256,23 @@ where
             cursor_position
         };
 
+        // draw path highlight
+        if let Some(_) = self.path_highlight{
+            let styling = theme.appearance(&self.style);
+            if let Some(active) = state.active_root{
+                let active_bounds = layout.clone().children()
+                    .skip(active).next().unwrap().bounds();
+                let path_quad = renderer::Quad{
+                    bounds: active_bounds,
+                    border_radius: styling.border_radius.into(),
+                    border_width: 0.0,
+                    border_color: Color::TRANSPARENT,
+                };
+                let path_color = styling.path;
+                renderer.fill_quad(path_quad, path_color);
+            }
+        }
+
         self.menu_roots.iter()
         .zip(&tree.children)
         .zip(layout.children())
@@ -263,13 +301,13 @@ where
         Some(Menu{
             tree,
             menu_roots: &mut self.menu_roots,
-            background_expand: 4.into(),
-            bounds_expand: 20,
+            bounds_expand: self.bounds_expand,
             item_size: self.item_size,
             bar_bounds: layout.bounds(),
             root_bounds_list: layout.children()
                 .map(|lo| lo.bounds())
                 .collect(),
+            path_highlight: self.path_highlight.clone(),
             style: &self.style,
         }.overlay())
     }
@@ -293,11 +331,11 @@ where
 {
     tree: &'b mut Tree,
     menu_roots: &'b mut Vec<MenuTree<'a, Message, Renderer>>,
-    background_expand: Padding,
     bounds_expand: u16,
     item_size: Size,
     bar_bounds: Rectangle,
     root_bounds_list: Vec<Rectangle>,
+    path_highlight: Option<PathHighlight>,
     style: &'b <Renderer::Theme as StyleSheet>::Style,
 }
 impl<'a, 'b, Message, Renderer> Menu<'a, 'b, Message, Renderer>
@@ -383,7 +421,8 @@ where
             let child_limits = layout::Limits::new(Size::ZERO, self.item_size);
             let child_nodes = menu_root.children.iter().enumerate().map(|(j, mt)|{
                 let mut node = mt.item.as_widget().layout(renderer, &child_limits);
-                node.move_to(Point::new(0.0, (j as f32) * item_height));
+                let center_offset = (self.item_size.height - node.size().height)*0.5;
+                node.move_to(Point::new(0.0, (j as f32) * item_height + center_offset));
                 node
             }).collect::<Vec<_>>();
 
@@ -494,42 +533,53 @@ where
         let tree = &self.tree.children[active_root].children;
         let root = &self.menu_roots[active_root];
         
-        state.indices.iter()
+        let indices = state.indices.iter()
+            .take_while(|i| i.is_some() )
+            .map(|i| i.unwrap() )
+            .collect::<Vec<_>>();
+
+        state.indices.iter().enumerate()
             .zip(layout.children())
-            .fold(root, |menu_root, (i, menu_layout)|{
+            .fold(root, |menu_root, ((e, i), menu_layout)|{
             
             let mut c = menu_layout.children();
             let children_layout = c.next().unwrap();
-            let parent_layout = c.next().unwrap();
+            let children_bounds = children_layout.bounds();
 
-            let draw_menu = |r: &mut Renderer|{
-                // draw path highlight
-                if i.is_some(){
-                    let parent_bounds = parent_layout.bounds();
-                    
-                    let path_quad = renderer::Quad{
-                        bounds: parent_bounds,
-                        border_radius: styling.border_radius.into(),
-                        border_width: 0.0,
-                        border_color: Color::TRANSPARENT,
-                    };
-                    let path_color = styling.highlight_path;
-                    r.fill_quad(path_quad, path_color);
-                }
-    
-                // draw menu background
+            let draw_menu_background = |r: &mut Renderer|{
                 let menu_quad = renderer::Quad{
-                    bounds: pad_rectangle(children_layout.bounds(), self.background_expand),
+                    bounds: pad_rectangle(children_bounds, styling.background_expand.into()),
                     border_radius: styling.border_radius.into(),
                     border_width: styling.border_width,
                     border_color: styling.border_color,
                 };
                 let menu_color = styling.background;
                 r.fill_quad(menu_quad, menu_color);
+            };
 
-                // draw items
+            let draw_path_highlight = |r: &mut Renderer, active:usize|{
+                let active_bounds = children_layout.children()
+                    .skip(active).next().unwrap().bounds();
+                // let path_bounds = Rectangle::new(
+                //     Point::new(
+                //         children_bounds.x,
+                //         children_bounds.y + (active as f32) * self.item_size.height,
+                //     ),
+                //     self.item_size
+                // );
+                let path_quad = renderer::Quad{
+                    bounds: active_bounds,
+                    border_radius: styling.border_radius.into(),
+                    border_width: 0.0,
+                    border_color: Color::TRANSPARENT,
+                };
+                let path_color = styling.path;
+                r.fill_quad(path_quad, path_color);
+            };
+
+            let draw_items = |r: &mut Renderer|{
                 menu_root.children.iter()
-                    .zip(children_layout.children())
+                    .zip(children_layout.clone().children())
                     .for_each(|(mt, clo)|{
                     mt.item.as_widget().draw(
                         &tree[mt.index], 
@@ -541,6 +591,29 @@ where
                         &children_layout.bounds()
                     );
                 });
+            };
+
+            let draw_path = match &self.path_highlight{
+                Some(ph) => match ph{
+                    PathHighlight::Full => true,
+                    PathHighlight::OmitActive => {
+                        indices.len() > 0 && e < indices.len() - 1
+                    },
+                    PathHighlight::MenuActive => {
+                        e < state.indices.len() - 1
+                    }
+                },
+                None => false,
+            };
+
+            let draw_menu = |r: &mut Renderer|{
+                draw_menu_background(r);
+
+                if let (true, Some(active)) = (draw_path, i){
+                    draw_path_highlight(r, *active);
+                }
+
+                draw_items(r);
             };
 
             renderer.with_layer(layout.bounds(), draw_menu);
